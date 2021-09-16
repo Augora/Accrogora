@@ -1,0 +1,18 @@
+{
+  "kind": "collectionType",
+  "collectionName": "deputes",
+  "info": {
+    "name": "Deputes"
+  },
+  "options": {
+    "increments": true,
+    "timestamps": true,
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "Depute_name": {
+      "type": "string"
+    }
+  }
+}

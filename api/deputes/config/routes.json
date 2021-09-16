@@ -1,0 +1,52 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/deputes",
+      "handler": "deputes.find",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/deputes/count",
+      "handler": "deputes.count",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/deputes/:id",
+      "handler": "deputes.findOne",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/deputes",
+      "handler": "deputes.create",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/deputes/:id",
+      "handler": "deputes.update",
+      "config": {
+        "policies": []
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/deputes/:id",
+      "handler": "deputes.delete",
+      "config": {
+        "policies": []
+      }
+    }
+  ]
+}
