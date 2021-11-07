@@ -12,7 +12,7 @@
 
 module.exports = async () => {
   process.nextTick(() =>{
-    var io = require('socket.io')(strapi.server, {
+    const io = require('socket.io')(strapi.server, {
       cors: {
         origin: "http://localhost:3000",
         methods: ["GET", "POST"],
@@ -20,38 +20,54 @@ module.exports = async () => {
         credentials: true
       }
     });
-    let activeDepute = null;
-    io.on('connection', async function(socket) {
-      console.log(`Client with ID of ${socket.id} connected!`)
-      socket.join('accropolis')
-      console.log('socket rooms : ', socket.rooms); // Set { <socket.id>, "room1" }
+    const jwt = require('jsonwebtoken');
+    // let activeDepute = null;
+
+    // Namespaces
+    /*----------------------------------------------------*/
+    const writerNamespace = io.of("/writer");
+    const readerNamespace = io.of("/reader");
+
+    // Writer
+    /*----------------------------------------------------*/
+    writerNamespace.use(function(socket, next){
+      const secret = process.env.JWT_SECRET || '2961ffdc-74eb-46a3-97fe-19e75f49b439'
+      if (socket.handshake.auth && socket.handshake.auth.token){
+        jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
+          if (err) {
+            console.log('err', err)
+            return next(new Error('Authentication error'))
+          };
+          socket.decoded = decoded;
+          next();
+        });
+      }
+      else {
+        next(new Error('Authentication error'));
+      }
+    })
+    writerNamespace.on('connection', async function(socket) {
+      // Connection acquired
+      console.log(`A CONTROLLER client with ID of ${socket.id} connected!`)
       // send message on user connection
-      socket.emit('message', 'retour depuis le backend');
+      socket.emit('message', 'CONTROLLER bien connecté');
 
       socket.on('message', message => {
         console.log('message', message)
       })
-      socket.on('req_depute', () => {
-        console.log('Request a deputy')
-        if (activeDepute) {
-          socket.emit('resp_depute', activeDepute)
-        }
-      })
       socket.on('depute_write', depute => {
         console.log('---------------------- depute_change -------------------')
-        socket.emit('message', 'depute_change from back')
-        socket.to('accropolis').emit('message', 'depute_change from back')
         console.log(depute.Nom)
-        activeDepute = depute
-        socket.emit('depute_read', depute)
-        socket.to('accropolis').emit('depute_read', depute)
         console.log('--------------------------------------------------------')
+        // activeDepute = depute
+        socket.emit('depute_read', depute)
+        io.of("/reader").emit('depute_read', depute)
       })
       socket.on('question', question => {
-        socket.to('accropolis').emit('question', question)
+        io.of("/reader").emit('question', question)
       })
       socket.on('overview', overview => {
-        socket.to('accropolis').emit('overview', overview)
+        io.of("/reader").emit('overview', overview)
       })
 
       // listen for user diconnect
@@ -59,6 +75,14 @@ module.exports = async () => {
         console.log('a user disconnected')
       });
     });
+
+    // Reader
+    /*----------------------------------------------------*/
+    readerNamespace.on('connection', async function(socket) {
+      console.log(`A READER client with ID of ${socket.id} connected!`)
+      socket.emit('message', 'READER bien connecté');
+    })
+
     strapi.io = io; // register socket io inside strapi main object to use it globally anywhere
   })
 };
