@@ -14,12 +14,13 @@ module.exports = async () => {
   process.nextTick(() =>{
     const io = require('socket.io')(strapi.server, {
       cors: {
-        origin: [
-          "http://localhost:3000",
-          "https://440.pullrequests.augora.fr",
-          "https://preprod.augora.fr",
-          "https://augora.fr",
-        ],
+        // origin: [
+        //   "http://localhost:3000",
+        //   "https://440.pullrequests.augora.fr",
+        //   "https://preprod.augora.fr",
+        //   "https://augora.fr",
+        // ],
+        origin: "*",
         methods: ["GET", "POST"],
         // allowedHeaders: ["my-custom-header"],
         // credentials: true
