@@ -54,16 +54,16 @@ module.exports = async () => {
               identifier: process.env.STRAPI_IDENTIFIER,
               password: process.env.STRAPI_PASSWORD,
             })
-            .then((data) => {
-              console.log('axios post data', data.data)
+            .then((res) => {
+              console.log('axios post data', res.data)
               return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
-                headers: {'Authorization': `Bearer ${data.data.jwt}`}
+                headers: {'Authorization': `Bearer ${res.data.jwt}`}
               })
             }
             )
-            .then((data) => {
-              console.log('after axio get', data.data)
-              if (data.data.moderator) {
+            .then((res) => {
+              console.log('after axio get', res.data)
+              if (res.data.moderator) {
                 next();
               } else {
                 return next(new Error('Authentication error'))
