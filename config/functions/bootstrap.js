@@ -65,7 +65,7 @@ module.exports = async () => {
               }
             })
             .catch((e) => {
-              console.log(e.err)
+              console.error(e)
               return next(new Error('Authentication error'))
             });
         });
