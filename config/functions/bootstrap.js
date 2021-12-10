@@ -57,7 +57,7 @@ module.exports = async () => {
             .then((data) => {
               console.log('axios post data', data)
               return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
-                headers: {'Authorization': `Bearer ${data.jwt}`}
+                headers: {'Authorization': `Bearer ${data.data.jwt}`}
               })
             }
             )
