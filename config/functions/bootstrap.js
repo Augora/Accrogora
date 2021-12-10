@@ -54,9 +54,13 @@ module.exports = async () => {
               identifier: process.env.STRAPI_IDENTIFIER,
               password: process.env.STRAPI_PASSWORD,
             })
-            .then((data) => axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
-              headers: {'Authorization': `Bearer ${data.jwt}`}
-            }))
+            .then((data) => {
+              console.log('axios post data', data)
+              return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
+                headers: {'Authorization': `Bearer ${data.jwt}`}
+              })
+            }
+            )
             .then((data) => {
               if (data.moderator) {
                 next();
