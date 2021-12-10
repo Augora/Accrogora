@@ -47,6 +47,7 @@ module.exports = async () => {
           };
 
           socket.decoded = decoded;
+          console.log('decoded', decoded)
 
           axios
             .post("https://accrogora.herokuapp.com/auth/local", {
@@ -63,8 +64,10 @@ module.exports = async () => {
                 return next(new Error('Authentication error'))
               }
             })
-            .catch((e) => console.error(e.response.data));
-          next();
+            .catch((e) => {
+              console.log(e.err)
+              return next(new Error('Authentication error'))
+            });
         });
       }
       else {
