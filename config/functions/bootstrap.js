@@ -27,6 +27,7 @@ module.exports = async () => {
       }
     });
     const jwt = require('jsonwebtoken');
+    const axios = require('axios');
     // let activeDepute = null;
 
     // Namespaces
@@ -38,13 +39,31 @@ module.exports = async () => {
     /*----------------------------------------------------*/
     writerNamespace.use(function(socket, next){
       const secret = process.env.JWT_SECRET || '2961ffdc-74eb-46a3-97fe-19e75f49b439'
-      if (socket.handshake.auth && socket.handshake.auth.token){
+      if (socket.handshake.auth && socket.handshake.auth.token) {
         jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
           if (err) {
             console.log('err', err)
             return next(new Error('Authentication error'))
           };
+
           socket.decoded = decoded;
+
+          axios
+            .post("https://accrogora.herokuapp.com/auth/local", {
+              identifier: process.env.STRAPI_IDENTIFIER,
+              password: process.env.STRAPI_PASSWORD,
+            })
+            .then((data) => axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
+              headers: {'Authorization': `Bearer ${data.jwt}`}
+            }))
+            .then((data) => {
+              if (data.moderator) {
+                next();
+              } else {
+                return next(new Error('Authentication error'))
+              }
+            })
+            .catch((e) => console.error(e.response.data));
           next();
         });
       }
