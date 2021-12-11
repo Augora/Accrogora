@@ -1,0 +1,28 @@
+{
+  "kind": "collectionType",
+  "collectionName": "governments",
+  "info": {
+    "name": "Government",
+    "description": ""
+  },
+  "options": {
+    "increments": true,
+    "timestamps": true,
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "firstname": {
+      "type": "string"
+    },
+    "lastname": {
+      "type": "string"
+    },
+    "main_office": {
+      "model": "office"
+    },
+    "ratt_office": {
+      "model": "office"
+    }
+  }
+}
