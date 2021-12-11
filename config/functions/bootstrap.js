@@ -42,12 +42,11 @@ module.exports = async () => {
       if (socket.handshake.auth && socket.handshake.auth.token) {
         jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
           if (err) {
-            console.log('err', err)
+            console.error('JSON Webtoken not valid', err)
             return next(new Error('Authentication error'))
           };
 
           socket.decoded = decoded;
-          console.log('decoded', decoded)
 
           axios
             .post("https://accrogora.herokuapp.com/auth/local", {
@@ -55,7 +54,9 @@ module.exports = async () => {
               password: process.env.STRAPI_PASSWORD,
             })
             .then((res) => {
-              console.log('axios post data', res.data)
+              console.log('axios post data --------------------------')
+              console.log(res.data)
+              console.log('------------------------------------------')
               return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
                 headers: {'Authorization': `Bearer ${res.data.jwt}`}
               })
@@ -66,16 +67,18 @@ module.exports = async () => {
               if (res.data.moderator) {
                 next();
               } else {
+                console.error('Not a moderator')
                 return next(new Error('Authentication error'))
               }
             })
             .catch((e) => {
-              console.error(e)
+              console.error('Catch axios get', e)
               return next(new Error('Authentication error'))
             });
         });
       }
       else {
+        console.error('Requires socket handshake and token')
         next(new Error('Authentication error'));
       }
     })
