@@ -39,6 +39,7 @@ module.exports = async () => {
     /*----------------------------------------------------*/
     writerNamespace.use(function(socket, next){
       const secret = process.env.JWT_SECRET
+      console.log("socket.handshake.auth.token", socket.handshake.auth.token)
       if (socket.handshake.auth && socket.handshake.auth.token) {
         jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
           if (err) {
