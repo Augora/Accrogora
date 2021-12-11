@@ -38,7 +38,7 @@ module.exports = async () => {
     // Writer
     /*----------------------------------------------------*/
     writerNamespace.use(function(socket, next){
-      const secret = process.env.JWT_SECRET || '2961ffdc-74eb-46a3-97fe-19e75f49b439'
+      const secret = process.env.JWT_SECRET
       if (socket.handshake.auth && socket.handshake.auth.token) {
         jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
           if (err) {
