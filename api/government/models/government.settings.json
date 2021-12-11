@@ -21,8 +21,8 @@
     "main_office": {
       "model": "office"
     },
-    "ratt_office": {
-      "model": "office"
+    "ratt_offices": {
+      "collection": "office"
     }
   }
 }
