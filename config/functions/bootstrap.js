@@ -55,21 +55,18 @@ module.exports = async () => {
               password: process.env.STRAPI_PASSWORD,
             })
             .then((res) => {
-              console.log('axios post data --------------------------')
-              console.log(res.data)
-              console.log('------------------------------------------')
               return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
                 headers: {'Authorization': `Bearer ${res.data.jwt}`}
               })
             }
             )
             .then((res) => {
-              console.log('after axio get', res.data)
               if (res.data.moderator) {
                 next();
               } else {
+                socket.disconnect();
                 console.error('Not a moderator')
-                return next(new Error('Authentication error'))
+                return next(new Error('Authentication error : Not a moderator'))
               }
             })
             .catch((e) => {
