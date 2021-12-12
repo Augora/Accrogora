@@ -29,6 +29,49 @@ module.exports = async () => {
     const jwt = require('jsonwebtoken');
     const axios = require('axios');
     // let activeDepute = null;
+    const checkAuth = (socket) => {
+      const secret = process.env.JWT_SECRET
+      console.log("socket.handshake.auth.token", socket.handshake.auth.token)
+      if (socket.handshake.auth && socket.handshake.auth.token) {
+        jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
+          if (err) {
+            console.error('JSON Webtoken not valid', err)
+            socket.disconnect();
+            return false;
+          };
+
+          socket.decoded = decoded;
+
+          axios
+            .post("https://accrogora.herokuapp.com/auth/local", {
+              identifier: process.env.STRAPI_IDENTIFIER,
+              password: process.env.STRAPI_PASSWORD,
+            })
+            .then((res) => {
+              return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
+                headers: {'Authorization': `Bearer ${res.data.jwt}`}
+              })
+            }
+            )
+            .then((res) => {
+              if (!res.data.moderator) {
+                socket.disconnect();
+                console.error('Not a moderator')
+                return false;
+              } else {
+                return true;
+              }
+            })
+            .catch((e) => {
+              socket.disconnect();
+              return false;
+            });
+        });
+      } else {
+        socket.disconnect();
+        return false;
+      }
+    }
 
     // Namespaces
     /*----------------------------------------------------*/
@@ -87,9 +130,11 @@ module.exports = async () => {
       socket.emit('message', 'CONTROLLER bien connecté');
 
       socket.on('message', message => {
+        checkAuth(socket)
         console.log('message', message)
       })
       socket.on('depute_write', depute => {
+        checkAuth(socket)
         console.log('---------------------- depute_change -------------------')
         console.log(depute.Nom)
         console.log('--------------------------------------------------------')
@@ -98,9 +143,11 @@ module.exports = async () => {
         io.of("/reader").emit('depute_read', depute)
       })
       socket.on('question', question => {
+        checkAuth(socket)
         io.of("/reader").emit('question', question)
       })
       socket.on('overview', overview => {
+        checkAuth(socket)
         io.of("/reader").emit('overview', overview)
       })
 
