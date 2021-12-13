@@ -133,14 +133,19 @@ module.exports = async () => {
         checkAuth(socket)
         console.log('message', message)
       })
-      socket.on('depute_write', depute => {
+      socket.on('depute_write', people => {
         checkAuth(socket)
         console.log('---------------------- depute_change -------------------')
-        console.log(depute.Nom)
+        if (people.Nom) {
+          console.log(people.Nom)
+        } else if (people.firstname) {
+          console.log(people.firstname + ' ' + people.lastname)
+        } else {
+          people
+        }
         console.log('--------------------------------------------------------')
-        // activeDepute = depute
-        socket.emit('depute_read', depute)
-        io.of("/reader").emit('depute_read', depute)
+        socket.emit('depute_read', people)
+        io.of("/reader").emit('depute_read', people)
       })
       socket.on('question', question => {
         checkAuth(socket)
