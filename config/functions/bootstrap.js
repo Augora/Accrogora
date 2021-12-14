@@ -35,9 +35,12 @@ module.exports = async () => {
     const secret = process.env.JWT_SECRET
 
     // App variables
-    let activePeople = null;
-    let activeOverview = null;
-    let activeQuestion = '';
+    const actives = {
+      people: null,
+      overview: null,
+      question: '',
+      bannerState: ''
+    }
     let serveurURI
     process.env.NODE_ENV === 'production'
       ? serveurURI = 'https://accrogora.herokuapp.com'
@@ -123,20 +126,23 @@ module.exports = async () => {
     writerNamespace.on('connection', async function(socket) {
       // Verifies if request is made by a moderator
       checkAuth(socket)
-      console.log(`A CONTROLLER client with ID of ${socket.id} connected!`)
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+      console.log(`A WRITER client with ID of ${socket.id} connected!`)
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
 
       // If already selected elements, loads them
-      console.log('activePeople', activePeople)
-      if (activePeople) {
-        socket.emit('depute_read', activePeople)
-      }
-      if (activeOverview) {
-        socket.emit('overview', activeOverview)
-      }
-      if (activeQuestion) {
-        socket.emit('question', activeQuestion)
-      }
+      /*----------------------------------------------------*/
+      Object.keys(actives).forEach(key => {
+        if (actives[key] !== '' && actives[key] !== null) {
+          console.log(`[WRITER] Got already active ${key} : `, actives[key]);
+          socket.emit(key, actives[key])
+        }
+      })
 
+      // Socket handlers
+      /*----------------------------------------------------*/
       // Connection acquired
       // send message on user connection
       socket.emit('message', 'CONTROLLER bien connecté');
@@ -144,23 +150,29 @@ module.exports = async () => {
       socket.on('message', message => {
         console.log('message', message)
       })
-      socket.on('depute_write', (people, type) => {
+      socket.on('depute_write', (people) => {
         // Logs server with selected data
-        console.log(`---------------------- New ${type === 'dep' ? 'Depute' : 'Government'} loaded -------------------`)
-        console.log(people)
+        console.log(`---------------------- New ${
+            people.type === 'dep' ? 'Depute'
+          : people.type === 'gov' ? 'Government'
+          : null
+        } loaded -------------------`)
+        if (people) {
+          console.log(people)
+        }
         console.log('--------------------------------------------------------')
 
         // If it's a Depute, register last active Depute
-        if (people.hasOwnProperty('__typename')) {
+        if (people.type === 'dep') {
           // If there's an active question
-          if (activeQuestion.length) {
+          if (actives.question.length) {
             axios.post(`${serveurURI}/auth/local`, {
               identifier: process.env.STRAPI_IDENTIFIER,
               password: process.env.STRAPI_PASSWORD,
             }).then(res => {
               // Construct data to send to creates the question
               const question_data = {
-                question_content: activeQuestion,
+                question_content: actives.question,
                 question_depute_slug: lastDepute.slug,
               }
               if (respGovernment.name) {
@@ -177,51 +189,84 @@ module.exports = async () => {
                   }
                 }
               ).then(res => {
+                console.log(`Question créée avec l\'id ${res.data.id}`)
+                // Reset question
+                socket.emit('reset_question')
+                io.of("/reader").emit('question', '')
+                actives.question = ''
+
+                // Send new depute
+                socket.emit('people', people)
+                io.of("/reader").emit('people', people)
+                actives.people = people
+
+                // Send new banner state
+                socket.emit('bannerState', people.type)
+                io.of("/reader").emit('bannerState', people.type)
+                actives.bannerState = people.type
+
                 lastDepute = {
                   slug: people.Slug
                 }
-                socket.emit('reset_question')
-                io.of("/reader").emit('question', '')
 
-                // Emit events
-                socket.emit('depute_read', people, type)
-                io.of("/reader").emit('depute_read', people, type)
-                activePeople = people
               }).catch(err => {
-                console.error('Couldn\'t register question', err.response)
-                if (err.response.data) {
-                  console.error(err.response.data.data)
-                }
+                console.error('Couldn\'t register question', err)
               })
             })
-          } else {
-            // If no question has been asked before
-            socket.emit('depute_read', people, type)
-            io.of("/reader").emit('depute_read', people, type)
-            activePeople = people
+          } else { // If no question has been asked before
+            socket.emit('people', people)
+            io.of("/reader").emit('people', people)
+            actives.people = people
+
+            socket.emit('bannerState', people.type)
+            io.of("/reader").emit('bannerState', people.type)
+            actives.bannerState = people.type
+
+            // Update lastDepute for strapi data
             lastDepute = {
               slug: people.Slug
             }
           }
-        } else {
+        } else if (people.type === 'gov') {
           // If People is a member of the government
-          socket.emit('depute_read', people, type)
-          io.of("/reader").emit('depute_read', people, type)
-          activePeople = people
+          socket.emit('people', people)
+          io.of("/reader").emit('people', people)
+          actives.people = people
+
+          socket.emit('bannerState', people.type)
+          io.of("/reader").emit('bannerState', people.type)
+          actives.bannerState = people.type
+
+          // Update respGovernment for strapi data
           respGovernment = {
             name: people.Nom,
             office: people.Office.office_name
           }
         }
       })
+
       socket.on('question', question => {
         io.of("/reader").emit('question', question)
-        activeQuestion = question
+        actives.question = question
       })
+
       socket.on('overview', overview => {
         socket.emit('overview', overview)
         io.of("/reader").emit('overview', overview)
-        activeOverview = overview
+        actives.overview = overview
+      })
+
+      socket.on('bannerState', banner => {
+        console.log('Banner State changed to : ', banner)
+        socket.emit('bannerState', banner)
+        io.of("/reader").emit('bannerState', banner)
+        actives.bannerState = banner
+
+        if (banner === 'intro' || banner === 'outro') {
+          socket.emit('reset_question')
+          io.of("/reader").emit('question', '')
+          actives.question = ''
+        }
       })
 
       // listen for user diconnect
@@ -233,20 +278,22 @@ module.exports = async () => {
     // Reader
     /*----------------------------------------------------*/
     readerNamespace.on('connection', async function(socket) {
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
       console.log(`A READER client with ID of ${socket.id} connected!`)
-      console.log('activePeople', activePeople)
-      console.log('activeOverview', activeOverview)
-      console.log('activeQuestion', activeQuestion)
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+      console.log(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+      console.log('actives.people', actives.people)
+      console.log('actives.overview', actives.overview)
+      console.log('actives.question', actives.question)
+      console.log('actives.bannerState', actives.bannerState)
       // If already selected elements, loads them
-      activePeople
-        ? socket.emit('depute_read', activePeople)
-        : socket.emit('intro')
-      activeQuestion
-        ? socket.emit('question', activeQuestion)
-        : null
-      activeOverview
-        ? socket.emit('overview', activeOverview)
-        : null
+      Object.keys(actives).forEach(key => {
+        if (actives[key] !== '' && actives[key] !== null) {
+          console.log(`[READER] Got already active ${key} : `, actives[key]);
+          socket.emit(key, actives[key])
+        }
+      })
       socket.emit('message', 'READER bien connecté');
     })
 
