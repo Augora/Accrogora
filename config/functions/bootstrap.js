@@ -27,16 +27,21 @@ module.exports = async () => {
       }
     });
 
-    // Constants
+    // Imports
     const jwt = require('jsonwebtoken');
     const axios = require('axios');
-    const serveurURI = 'http://localhost:1337'
+
+    // Constants
     const secret = process.env.JWT_SECRET
 
     // App variables
     let activePeople = null;
     let activeOverview = null;
     let activeQuestion = '';
+    let serveurURI
+    process.env.NODE_ENV === 'production'
+      ? serveurURI = 'https://accrogora.herokuapp.com'
+      : serveurURI = 'http://localhost:1337'
 
     // Question variables
     let lastDepute = {};
