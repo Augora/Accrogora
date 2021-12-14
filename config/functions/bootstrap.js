@@ -32,9 +32,23 @@ module.exports = async () => {
     const axios = require('axios');
 
     // Variables
-    let activeDepute = null;
+    let activePeople = null;
     let activeOverview = null;
     let activeQuestion = null;
+
+    // Serveur authentication
+    let adminJWT = null
+    axios
+      .post("https://accrogora.herokuapp.com/auth/local", {
+        identifier: process.env.STRAPI_IDENTIFIER,
+        password: process.env.STRAPI_PASSWORD,
+      }).then(res => {
+        console.log('Admin authentified, token is : ', res.data.jwt)
+        adminJWT = res.data.jwt
+      }).catch(err => {
+        console.error('AdminJWT Auth Failed : ', err)
+        adminJWT = null
+      })
 
     // Authentication checker
     const checkAuth = (socket) => {
@@ -50,32 +64,28 @@ module.exports = async () => {
 
           socket.decoded = decoded;
 
-          axios
-            .post("https://accrogora.herokuapp.com/auth/local", {
-              identifier: process.env.STRAPI_IDENTIFIER,
-              password: process.env.STRAPI_PASSWORD,
-            })
-            .then((res) => {
-              return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
-                headers: {'Authorization': `Bearer ${res.data.jwt}`}
-              })
-            }
-            )
-            .then((res) => {
-              if (!res.data.moderator) {
-                socket.disconnect();
-                console.error('Not a moderator')
-                return false;
-              } else {
-                return true;
-              }
-            })
-            .catch((e) => {
+          axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
+            headers: {'Authorization': `Bearer ${adminJWT}`}
+          }).then((res) => {
+            if (!res.data.moderator) {
+              socket.emit('message', 'You\'re not authorized to access this content')
               socket.disconnect();
+              console.error('Not a moderator, disconnected')
               return false;
-            });
+            } else {
+              return true;
+            }
+          }).catch((e) => {
+            console.error('Error in veryfing authorization access')
+            if (e.data) {
+              console.error(e.data)
+            }
+            socket.disconnect();
+            return false;
+          });
         });
       } else {
+        console.error('Not found or invalid JWT used for websockets')
         socket.disconnect();
         return false;
       }
@@ -101,31 +111,20 @@ module.exports = async () => {
           socket.decoded = decoded;
           console.log('socket.decoded', socket.decoded)
 
-          axios
-            .post("https://accrogora.herokuapp.com/auth/local", {
-              identifier: process.env.STRAPI_IDENTIFIER,
-              password: process.env.STRAPI_PASSWORD,
-            })
-            .then((res) => {
-              console.log('axios post res data', res.data)
-              return axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
-                headers: {'Authorization': `Bearer ${res.data.jwt}`}
-              })
+          axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
+            headers: {'Authorization': `Bearer ${adminJWT}`}
+          }).then((res) => {
+            if (res.data.moderator) {
+              next();
+            } else {
+              socket.disconnect();
+              console.error('Not a moderator')
+              return next(new Error('Authentication error : Not a moderator'))
             }
-            )
-            .then((res) => {
-              if (res.data.moderator) {
-                next();
-              } else {
-                socket.disconnect();
-                console.error('Not a moderator')
-                return next(new Error('Authentication error : Not a moderator'))
-              }
-            })
-            .catch((e) => {
-              console.error('Catch axios get', e.data)
-              return next(new Error('Authentication error'))
-            });
+          }).catch((e) => {
+            console.error('Catch axios get', e.data)
+            return next(new Error('Authentication error'))
+          });
         });
       }
       else {
@@ -139,9 +138,9 @@ module.exports = async () => {
       console.log(`A CONTROLLER client with ID of ${socket.id} connected!`)
 
       // If already selected elements, loads them
-      console.log('activeDepute', activeDepute)
-      if (activeDepute) {
-        socket.emit('depute_read', activeDepute)
+      console.log('activePeople', activePeople)
+      if (activePeople) {
+        socket.emit('depute_read', activePeople)
       }
       if (activeOverview) {
         socket.emit('overview', activeOverview)
@@ -166,7 +165,7 @@ module.exports = async () => {
         // Emit events
         socket.emit('depute_read', people, type)
         io.of("/reader").emit('depute_read', people, type)
-        activeDepute = people
+        activePeople = people
       })
       socket.on('question', question => {
         io.of("/reader").emit('question', question)
@@ -188,12 +187,12 @@ module.exports = async () => {
     /*----------------------------------------------------*/
     readerNamespace.on('connection', async function(socket) {
       console.log(`A READER client with ID of ${socket.id} connected!`)
-      console.log('activeDepute', activeDepute)
+      console.log('activePeople', activePeople)
       console.log('activeOverview', activeOverview)
       console.log('activeQuestion', activeQuestion)
       // If already selected elements, loads them
-      activeDepute
-        ? socket.emit('depute_read', activeDepute)
+      activePeople
+        ? socket.emit('depute_read', activePeople)
         : socket.emit('intro')
       activeQuestion
         ? socket.emit('question', activeQuestion)
