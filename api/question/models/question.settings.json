@@ -1,0 +1,30 @@
+{
+  "kind": "collectionType",
+  "collectionName": "questions",
+  "info": {
+    "name": "Question"
+  },
+  "options": {
+    "increments": true,
+    "timestamps": true,
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "question_content": {
+      "type": "string",
+      "required": false
+    },
+    "question_depute_slug": {
+      "type": "string",
+      "required": true,
+      "unique": false
+    },
+    "question_government_name": {
+      "type": "string"
+    },
+    "question_government_office": {
+      "type": "string"
+    }
+  }
+}

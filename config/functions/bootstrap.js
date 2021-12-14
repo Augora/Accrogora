@@ -30,30 +30,20 @@ module.exports = async () => {
     // Constants
     const jwt = require('jsonwebtoken');
     const axios = require('axios');
+    const serveurURI = 'http://localhost:1337'
+    const secret = process.env.JWT_SECRET
 
-    // Variables
+    // App variables
     let activePeople = null;
     let activeOverview = null;
-    let activeQuestion = null;
+    let activeQuestion = '';
 
-    // Serveur authentication
-    let adminJWT = null
-    axios
-      .post("https://accrogora.herokuapp.com/auth/local", {
-        identifier: process.env.STRAPI_IDENTIFIER,
-        password: process.env.STRAPI_PASSWORD,
-      }).then(res => {
-        console.log('Admin authentified, token is : ', res.data.jwt)
-        adminJWT = res.data.jwt
-      }).catch(err => {
-        console.error('AdminJWT Auth Failed : ', err)
-        adminJWT = null
-      })
+    // Question variables
+    let lastDepute = {};
+    let respGovernment = {};
 
     // Authentication checker
-    const checkAuth = (socket) => {
-      const secret = process.env.JWT_SECRET
-      console.log("socket.handshake.auth.token", socket.handshake.auth.token)
+    const checkAuth = (socket, next = null) => {
       if (socket.handshake.auth && socket.handshake.auth.token) {
         jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
           if (err) {
@@ -64,30 +54,51 @@ module.exports = async () => {
 
           socket.decoded = decoded;
 
-          axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
-            headers: {'Authorization': `Bearer ${adminJWT}`}
-          }).then((res) => {
-            if (!res.data.moderator) {
-              socket.emit('message', 'You\'re not authorized to access this content')
+          axios.post(`${serveurURI}/auth/local`, {
+            identifier: process.env.STRAPI_IDENTIFIER,
+            password: process.env.STRAPI_PASSWORD,
+          }).then(res => {
+            axios.get(`${serveurURI}/users/${decoded.id}`, {
+              headers: {'Authorization': `Bearer ${res.data.jwt}`}
+            }).then((res) => {
+              if (res.data.role.type === 'moderator' || res.data.role.type === 'admin') {
+                if (next) {
+                  return next()
+                } else {
+                  return true;
+                }
+              } else {
+                socket.emit('message', 'You\'re not authorized to access this content')
+                socket.disconnect();
+                console.error('Not a moderator, disconnected')
+                if (next) {
+                  return next(new Error('Authentication error'))
+                } else {
+                  return false;
+                }
+              }
+            }).catch((e) => {
+              console.error('Error in veryfing authorization access')
+              if (e.data) {
+                console.error(e.data)
+              }
               socket.disconnect();
-              console.error('Not a moderator, disconnected')
-              return false;
-            } else {
-              return true;
-            }
-          }).catch((e) => {
-            console.error('Error in veryfing authorization access')
-            if (e.data) {
-              console.error(e.data)
-            }
-            socket.disconnect();
-            return false;
-          });
+              if (next) {
+                return next(new Error('Authentication error'))
+              } else {
+                return false;
+              }
+            });
+          })
         });
       } else {
         console.error('Not found or invalid JWT used for websockets')
         socket.disconnect();
-        return false;
+        if (next) {
+          return next(new Error('Authentication error'))
+        } else {
+          return false;
+        }
       }
     }
 
@@ -98,40 +109,12 @@ module.exports = async () => {
 
     // Writer
     /*----------------------------------------------------*/
+    // Verifry validity of token connection
     writerNamespace.use(function(socket, next){
-      const secret = process.env.JWT_SECRET
-      console.log("socket.handshake.auth.token", socket.handshake.auth.token)
-      if (socket.handshake.auth && socket.handshake.auth.token) {
-        jwt.verify(socket.handshake.auth.token, secret, function(err, decoded) {
-          if (err) {
-            console.error('JSON Webtoken not valid', err)
-            return next(new Error('Authentication error'))
-          };
-
-          socket.decoded = decoded;
-          console.log('socket.decoded', socket.decoded)
-
-          axios.get(`https://accrogora.herokuapp.com/users/${decoded.id}`, {
-            headers: {'Authorization': `Bearer ${adminJWT}`}
-          }).then((res) => {
-            if (res.data.moderator) {
-              next();
-            } else {
-              socket.disconnect();
-              console.error('Not a moderator')
-              return next(new Error('Authentication error : Not a moderator'))
-            }
-          }).catch((e) => {
-            console.error('Catch axios get', e.data)
-            return next(new Error('Authentication error'))
-          });
-        });
-      }
-      else {
-        console.error('Requires socket handshake and token')
-        next(new Error('Authentication error'));
-      }
+      checkAuth(socket, next)
     })
+
+    // On connection
     writerNamespace.on('connection', async function(socket) {
       // Verifies if request is made by a moderator
       checkAuth(socket)
@@ -162,10 +145,69 @@ module.exports = async () => {
         console.log(people)
         console.log('--------------------------------------------------------')
 
-        // Emit events
-        socket.emit('depute_read', people, type)
-        io.of("/reader").emit('depute_read', people, type)
-        activePeople = people
+        // If it's a Depute, register last active Depute
+        if (people.hasOwnProperty('__typename')) {
+          // If there's an active question
+          if (activeQuestion.length) {
+            axios.post(`${serveurURI}/auth/local`, {
+              identifier: process.env.STRAPI_IDENTIFIER,
+              password: process.env.STRAPI_PASSWORD,
+            }).then(res => {
+              // Construct data to send to creates the question
+              const question_data = {
+                question_content: activeQuestion,
+                question_depute_slug: lastDepute.slug,
+              }
+              if (respGovernment.name) {
+                question_data.question_government_name = respGovernment.name
+              }
+              if (respGovernment.office) {
+                question_data.question_government_office = respGovernment.office
+              }
+              axios.post(`${serveurURI}/questions`,
+                question_data,
+                {
+                  headers: {
+                    "Authorization": `Bearer ${res.data.jwt}`
+                  }
+                }
+              ).then(res => {
+                lastDepute = {
+                  slug: people.Slug
+                }
+                socket.emit('reset_question')
+                io.of("/reader").emit('question', '')
+
+                // Emit events
+                socket.emit('depute_read', people, type)
+                io.of("/reader").emit('depute_read', people, type)
+                activePeople = people
+              }).catch(err => {
+                console.error('Couldn\'t register question', err.response)
+                if (err.response.data) {
+                  console.error(err.response.data.data)
+                }
+              })
+            })
+          } else {
+            // If no question has been asked before
+            socket.emit('depute_read', people, type)
+            io.of("/reader").emit('depute_read', people, type)
+            activePeople = people
+            lastDepute = {
+              slug: people.Slug
+            }
+          }
+        } else {
+          // If People is a member of the government
+          socket.emit('depute_read', people, type)
+          io.of("/reader").emit('depute_read', people, type)
+          activePeople = people
+          respGovernment = {
+            name: people.Nom,
+            office: people.Office.office_name
+          }
+        }
       })
       socket.on('question', question => {
         io.of("/reader").emit('question', question)

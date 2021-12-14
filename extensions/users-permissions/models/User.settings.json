@@ -58,15 +58,6 @@
       "via": "users",
       "plugin": "users-permissions",
       "configurable": false
-    },
-    "moderator": {
-      "type": "boolean",
-      "default": false
-    },
-    "admin": {
-      "type": "boolean",
-      "default": false,
-      "required": false
     }
   }
 }
